@@ -10,8 +10,8 @@
 </head>
 <body>
 <script type="module">
-  import * as THREE from 'https://cdn.skypack.dev/three';
-  import { VRButton } from 'https://cdn.skypack.dev/three/examples/jsm/webxr/VRButton.js';
+  import * as THREE from 'https://unpkg.com/three@0.161.0/build/three.module.js';
+  import { VRButton } from 'https://unpkg.com/three@0.161.0/examples/jsm/webxr/VRButton.js';
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x202020);
@@ -36,7 +36,6 @@
   const sphereGroup = new THREE.Group();
   scene.add(sphereGroup);
 
-  // Küreleri oluştur
   for (let i = 0; i < 8; i++) {
     const geometry = new THREE.SphereGeometry(0.2, 32, 32);
     const material = new THREE.MeshStandardMaterial({ color: 0x0000ff });
@@ -58,31 +57,26 @@
     velocities.push(velocity);
   }
 
-  // Takip hedeflerini seç
   while (targetIndices.length < numTargets) {
     const rand = Math.floor(Math.random() * spheres.length);
     if (!targetIndices.includes(rand)) {
       targetIndices.push(rand);
-      spheres[rand].material.color.set(0xffff00); // Sarı
+      spheres[rand].material.color.set(0xffff00);
     }
   }
 
-  // 2 saniye sonra hepsini maviye döndür
   setTimeout(() => {
     for (let i of targetIndices) {
       spheres[i].material.color.set(0x0000ff);
     }
   }, 2000);
 
-  let movementTime = 8000;
   let moving = true;
-
   setTimeout(() => {
     moving = false;
-    console.log("Now select targets by pointing and pressing trigger.");
-  }, movementTime);
+    console.log("Now select targets");
+  }, 8000);
 
-  // Controller setup
   const controller = renderer.xr.getController(0);
   scene.add(controller);
 
@@ -101,27 +95,24 @@
         const obj = intersects[0].object;
         if (!selected.includes(obj.name)) {
           selected.push(obj.name);
-          obj.material.color.set(0x00ff00); // Yeşile boyar seçilenleri
+          obj.material.color.set(0x00ff00);
           console.log(`Seçildi: ${obj.name}`);
         }
 
         if (selected.length === numTargets) {
-          console.log("✅ Seçimler tamamlandı.");
           const correct = selected.filter(name =>
             targetIndices.includes(parseInt(name.split("_")[1]))
           );
-          console.log(`🎯 Doğru sayısı: ${correct.length}/${numTargets}`);
+          console.log(`Doğru sayısı: ${correct.length}/${numTargets}`);
         }
       }
     }
   });
 
-  // Animasyon döngüsü
   renderer.setAnimationLoop(() => {
     if (moving) {
       spheres.forEach((sphere, i) => {
         sphere.position.add(velocities[i]);
-
         for (let axis of ['x', 'y', 'z']) {
           if (Math.abs(sphere.position[axis]) > 4) {
             velocities[i][axis] *= -1;
@@ -129,7 +120,6 @@
         }
       });
     }
-
     renderer.render(scene, camera);
   });
 </script>
