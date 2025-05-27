@@ -29,13 +29,6 @@ document.body.appendChild(VRButton.createButton(renderer));
 const light = new THREE.HemisphereLight(0xffffff, 0x444444, 1);
 scene.add(light);
 
-const infoBox = new THREE.Mesh(
-  new THREE.BoxGeometry(1.5, 0.2, 0.1),
-  new THREE.MeshStandardMaterial({ color: 0x2222ff })
-);
-infoBox.position.set(0, 2, -2);
-scene.add(infoBox);
-
 const spheres = [];
 const velocities = [];
 const targets = [];
@@ -50,6 +43,7 @@ for (let i = 0; i < 8; i++) {
     new THREE.MeshStandardMaterial({ color: 0x0000ff })
   );
   sphere.position.set(Math.random() * 4 - 2, 1 + Math.random() * 2, Math.random() * 4 - 2);
+  sphere.name = `Sphere_${i}`;  // ✅ Add name so we can track
   scene.add(sphere);
   spheres.push(sphere);
   velocities.push(new THREE.Vector3(
@@ -59,7 +53,7 @@ for (let i = 0; i < 8; i++) {
   ));
 }
 
-// Randomly select targets
+// Pick targets
 while (targets.length < numTargets) {
   const idx = Math.floor(Math.random() * 8);
   if (!targets.includes(idx)) {
@@ -68,15 +62,18 @@ while (targets.length < numTargets) {
   }
 }
 
+// Start movement
 setTimeout(() => {
   targets.forEach(i => spheres[i].material.color.set(0x0000ff));
   moving = true;
 }, 3000);
 
+// Stop movement
 setTimeout(() => {
   moving = false;
 }, 11000);
 
+// Controller
 const controller = renderer.xr.getController(0);
 scene.add(controller);
 
@@ -95,6 +92,15 @@ controller.addEventListener('select', () => {
       if (!selected.includes(obj.name)) {
         obj.material.color.set(0x00ff00); // green
         selected.push(obj.name);
+
+        if (selected.length === numTargets) {
+          const correct = selected.filter(name => {
+            const idx = parseInt(name.split("_")[1]);
+            return targets.includes(idx);
+          });
+          console.log(`🎯 Selected: ${selected.join(", ")}`);
+          console.log(`✔️ Correct: ${correct.length}/${numTargets}`);
+        }
       }
     }
   }
