@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>NeuroTracker VR Fixed</title>
+  <title>NeuroTracker VR</title>
   <style>
     body { margin: 0; }
     canvas { display: block; }
@@ -10,47 +10,151 @@
 </head>
 <body>
 <script type="module">
-  import * as THREE from 'https://unpkg.com/three@0.161.0/build/three.module.js';
-  import { VRButton } from 'https://unpkg.com/three@0.161.0/examples/jsm/webxr/VRButton.js';
+import * as THREE from 'https://unpkg.com/three@0.161.0/build/three.module.js';
+import { VRButton } from 'https://unpkg.com/three@0.161.0/examples/jsm/webxr/VRButton.js';
+import { FontLoader } from 'https://unpkg.com/three@0.161.0/examples/jsm/loaders/FontLoader.js';
+import { TextGeometry } from 'https://unpkg.com/three@0.161.0/examples/jsm/geometries/TextGeometry.js';
 
-  const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x101010);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x101010);
 
-  const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 100);
-  camera.position.set(0, 1.6, 0); // Typical VR eye height
+const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(0, 1.6, 0);
 
-  const renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.xr.enabled = true;
-  renderer.xr.setReferenceSpaceType('local-floor'); // ✅ FIX for black screen
-  document.body.appendChild(renderer.domElement);
-  document.body.appendChild(VRButton.createButton(renderer));
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.xr.enabled = true;
+renderer.xr.setReferenceSpaceType('local-floor');
+document.body.appendChild(renderer.domElement);
+document.body.appendChild(VRButton.createButton(renderer));
 
-  const light = new THREE.HemisphereLight(0xffffff, 0x444444, 1);
-  light.position.set(0, 1, 0);
-  scene.add(light);
+const light = new THREE.HemisphereLight(0xffffff, 0x444444, 1);
+scene.add(light);
 
-  // Ground
-  const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(10, 10),
-    new THREE.MeshStandardMaterial({ color: 0x333333 })
-  );
-  ground.rotation.x = -Math.PI / 2;
-  scene.add(ground);
+const spheres = [];
+const velocities = [];
+const targetIndices = [];
+const selected = [];
+const numTargets = 3;
+let moving = false;
+let font;
+let messageMesh = null;
 
-  // Reference box
-  const box = new THREE.Mesh(
-    new THREE.BoxGeometry(0.5, 0.5, 0.5),
-    new THREE.MeshStandardMaterial({ color: 0x00ff00 })
-  );
-  box.position.set(0, 0.25, -2);
-  scene.add(box);
+// UI: load font and show message
+const loader = new FontLoader();
+loader.load('https://threejs.org/examples/fonts/helvetiker_regular.typeface.json', f => {
+  font = f;
+  showMessage("Track the yellow spheres", 2);
+});
 
-  // VR animation loop
-  renderer.setAnimationLoop(() => {
-    box.rotation.y += 0.01;
-    renderer.render(scene, camera);
+function showMessage(text, duration = 3) {
+  if (messageMesh) scene.remove(messageMesh);
+  const geometry = new TextGeometry(text, {
+    font: font,
+    size: 0.15,
+    height: 0.02
   });
+  const material = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  messageMesh = new THREE.Mesh(geometry, material);
+  messageMesh.position.set(-0.7, 2.2, -2);
+  scene.add(messageMesh);
+
+  if (duration > 0) {
+    setTimeout(() => {
+      if (messageMesh) scene.remove(messageMesh);
+      messageMesh = null;
+    }, duration * 1000);
+  }
+}
+
+// Create spheres
+for (let i = 0; i < 8; i++) {
+  const sphere = new THREE.Mesh(
+    new THREE.SphereGeometry(0.2, 32, 32),
+    new THREE.MeshStandardMaterial({ color: 0x0000ff })
+  );
+  sphere.position.set(
+    THREE.MathUtils.randFloatSpread(4),
+    THREE.MathUtils.randFloat(1, 2.5),
+    THREE.MathUtils.randFloatSpread(4)
+  );
+  sphere.name = `Sphere_${i}`;
+  scene.add(sphere);
+  spheres.push(sphere);
+
+  velocities.push(new THREE.Vector3(
+    THREE.MathUtils.randFloatSpread(0.02),
+    THREE.MathUtils.randFloatSpread(0.02),
+    THREE.MathUtils.randFloatSpread(0.02)
+  ));
+}
+
+// Pick target spheres
+while (targetIndices.length < numTargets) {
+  const rand = Math.floor(Math.random() * spheres.length);
+  if (!targetIndices.includes(rand)) {
+    targetIndices.push(rand);
+    spheres[rand].material.color.set(0xffff00);
+  }
+}
+
+// Hide targets and start movement
+setTimeout(() => {
+  targetIndices.forEach(i => spheres[i].material.color.set(0x0000ff));
+  moving = true;
+  showMessage("Select the targets!", 4);
+}, 3000);
+
+// Stop movement
+setTimeout(() => {
+  moving = false;
+  showMessage("Use your controller to pick", 0);
+}, 11000);
+
+// Controller
+const controller = renderer.xr.getController(0);
+scene.add(controller);
+
+const raycaster = new THREE.Raycaster();
+const tempMatrix = new THREE.Matrix4();
+
+controller.addEventListener('select', () => {
+  if (!moving && selected.length < numTargets) {
+    tempMatrix.identity().extractRotation(controller.matrixWorld);
+    raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+    raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
+
+    const intersects = raycaster.intersectObjects(spheres);
+    if (intersects.length > 0) {
+      const obj = intersects[0].object;
+      if (!selected.includes(obj.name)) {
+        selected.push(obj.name);
+        obj.material.color.set(0x00ff00);
+        if (selected.length === numTargets) {
+          const correct = selected.filter(name => {
+            const idx = parseInt(name.split('_')[1]);
+            return targetIndices.includes(idx);
+          });
+          showMessage(`✔️ ${correct.length}/${numTargets} correct`, 0);
+        }
+      }
+    }
+  }
+});
+
+// Animate
+renderer.setAnimationLoop(() => {
+  if (moving) {
+    spheres.forEach((sphere, i) => {
+      sphere.position.add(velocities[i]);
+      ['x', 'y', 'z'].forEach(axis => {
+        if (Math.abs(sphere.position[axis]) > 4) velocities[i][axis] *= -1;
+        if (sphere.position.y < 1 || sphere.position.y > 3) velocities[i].y *= -1;
+      });
+    });
+  }
+  renderer.render(scene, camera);
+});
 </script>
 </body>
 </html>
